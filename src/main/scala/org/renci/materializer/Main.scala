@@ -19,42 +19,48 @@ import java.lang.System.currentTimeMillis
 import scala.jdk.CollectionConverters._
 import scala.util.Using
 
-object Main extends ZCaseApp[MaterializerConfig] {
+object Main extends ZCommandApp[MaterializerConfig] {
 
   private val ProvDerivedFrom = NodeFactory.createURI("http://www.w3.org/ns/prov#wasDerivedFrom")
 
-  override def run(config: MaterializerConfig, arg: RemainingArgs): URIO[Scope, ExitCode] = {
-    val program = for {
-      quadsWriter <- createStreamRDF(config.output)
-      ontology <- loadOntology(config.ontologyFile)
-      filterGraphQueryOpt <- ZIO.foreach(config.filterGraphQuery)(loadFilterGraphQuery)
-      reasoner = config.reasoner.construct(ontology, config.markDirectTypes.bool, config.outputIndirectTypes.bool)
-      _ <- ZIO.succeed(scribe.info("Prepared reasoner"))
-      start <- ZIO.succeed(currentTimeMillis())
-      inferencesStream = streamModels(config.input, config.parallelism)
-        .filter(model => filterGraphQueryOpt.forall(q => shouldUseGraph(q, model.model)))
-        .mapZIOParUnordered(config.parallelism)(computeInferences(_, reasoner, config))
-        .tap {
-          case _: Inferences      => ZIO.unit
-          case Inconsistent(path) => ZIO.succeed(scribe.warn(s"Inconsistent dataset: $path"))
-        }
-        .collect { case inf: Inferences => inf }
-      _ <- inferencesStream.foreach { case Inferences(_, graphOpt, triples) =>
-        writeModel(graphOpt, triples, quadsWriter)
-      }
-      stop <- ZIO.succeed(currentTimeMillis())
-      _ <- ZIO.succeed(scribe.info(s"Reasoning done in: ${(stop - start) / 1000.0}s"))
-    } yield ()
+  override def run(command: MaterializerConfig, arg: RemainingArgs): URIO[Scope, ExitCode] = {
+    val program = command match {
+      case config: MaterializerConfig.File =>
+        for {
+          quadsWriter <- createStreamRDF(config.output)
+          ontology <- loadOntology(config.ontologyFile)
+          filterGraphQueryOpt <- ZIO.foreach(config.filterGraphQuery)(loadFilterGraphQuery)
+          reasoner = config.reasoner.construct(ontology)
+          _ <- ZIO.succeed(scribe.info("Prepared reasoner"))
+          start <- ZIO.succeed(currentTimeMillis())
+          inferencesStream = streamModels(config.input, config.parallelism)
+            .filter(model => filterGraphQueryOpt.forall(q => shouldUseGraph(q, model.model)))
+            .mapZIOParUnordered(config.parallelism)(computeInferences(_, reasoner, config))
+            .tap {
+              case _: Inferences      => ZIO.unit
+              case Inconsistent(path) => ZIO.succeed(scribe.warn(s"Inconsistent dataset: $path"))
+            }
+            .collect { case inf: Inferences => inf }
+          _ <- inferencesStream.foreach { case Inferences(_, graphOpt, triples) =>
+            writeModel(graphOpt, triples, quadsWriter)
+          }
+          stop <- ZIO.succeed(currentTimeMillis())
+          _ <- ZIO.succeed(scribe.info(s"Reasoning done in: ${(stop - start) / 1000.0}s"))
+        } yield ()
+      case s: MaterializerConfig.Server    =>
+        val reasonerLayer = ZLayer.fromZIO(loadOntology(s.ontologyFile).map(s.reasoner.construct))
+        MaterializerServer.serverProgram.provide(reasonerLayer)
+    }
     program.tapError(e => ZIO.succeed(e.printStackTrace())).exitCode
   }
 
-  def computeInferences(model: ModelFromPath, materializer: Materializer, config: MaterializerConfig): Task[Result] = {
+  def computeInferences(model: ModelFromPath, materializer: Materializer, config: MaterializerConfig.File): Task[Result] = {
     for {
       modelIRI <- ZIO.fromOption(findModelIRI(model.model))
         .orElseFail(new Exception(s"Dataset with no ontology IRI in file ${model.path}"))
       graphOpt = determineOutGraph(modelIRI, config).map(NodeFactory.createURI)
       provenanceOpt = graphOpt.map(g => Triple.create(g, ProvDerivedFrom, NodeFactory.createURI(modelIRI)))
-      inferred = materializer.materialize(model.model, config.outputInconsistent.bool)
+      inferred = materializer.materialize(model.model, config.outputInconsistent.bool, config.markDirectTypes.bool, config.outputIndirectTypes.bool)
     } yield {
       inferred match {
         case Some(inferences) => Inferences(model.path, graphOpt, inferences ++ provenanceOpt)
@@ -108,7 +114,7 @@ object Main extends ZCaseApp[MaterializerConfig] {
     }
   }
 
-  def determineOutGraph(modelIRI: String, config: MaterializerConfig): Option[String] =
+  def determineOutGraph(modelIRI: String, config: MaterializerConfig.File): Option[String] =
     config.outputGraphName.map {
       name =>
         if (config.suffixGraph.bool) modelIRI + name

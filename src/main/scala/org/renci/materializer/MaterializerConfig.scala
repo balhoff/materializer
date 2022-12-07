@@ -5,20 +5,25 @@ import caseapp.core.argparser.{ArgParser, SimpleArgParser}
 import org.renci.materializer.MaterializerConfig.{Arachne, BoolValue, FalseValue, Reasoner, TrueValue}
 import org.semanticweb.owlapi.model.OWLOntology
 
-final case class MaterializerConfig(ontologyFile: String,
-                                    input: String,
-                                    output: String,
-                                    suffixOutput: BoolValue = FalseValue,
-                                    outputGraphName: Option[String],
-                                    suffixGraph: BoolValue = TrueValue,
-                                    reasoner: Reasoner = Arachne,
-                                    markDirectTypes: BoolValue = FalseValue,
-                                    outputIndirectTypes: BoolValue = TrueValue,
-                                    outputInconsistent: BoolValue = FalseValue,
-                                    parallelism: Int = 16,
-                                    filterGraphQuery: Option[String])
+sealed trait MaterializerConfig
 
 object MaterializerConfig {
+
+  final case class File(ontologyFile: String,
+                        input: String,
+                        output: String,
+                        suffixOutput: BoolValue = FalseValue,
+                        outputGraphName: Option[String],
+                        suffixGraph: BoolValue = TrueValue,
+                        reasoner: Reasoner = Arachne,
+                        markDirectTypes: BoolValue = FalseValue,
+                        outputIndirectTypes: BoolValue = TrueValue,
+                        outputInconsistent: BoolValue = FalseValue,
+                        parallelism: Int = 16,
+                        filterGraphQuery: Option[String]) extends MaterializerConfig
+
+  final case class Server(ontologyFile: String,
+                          reasoner: Reasoner = Arachne) extends MaterializerConfig
 
   /**
     * This works around some confusing behavior in case-app boolean parsing
@@ -53,20 +58,20 @@ object MaterializerConfig {
 
   sealed trait Reasoner {
 
-    def construct(ontology: OWLOntology, markDirectTypes: Boolean, assertIndirectTypes: Boolean): Materializer
+    def construct(ontology: OWLOntology): Materializer
 
   }
 
   case object Arachne extends Reasoner {
 
-    def construct(ontology: OWLOntology, markDirectTypes: Boolean, assertIndirectTypes: Boolean): Materializer =
-      ArachneMaterializer.apply(ontology, markDirectTypes, assertIndirectTypes)
+    def construct(ontology: OWLOntology): Materializer =
+      ArachneMaterializer.apply(ontology)
   }
 
   case object Whelk extends Reasoner {
 
-    def construct(ontology: OWLOntology, markDirectTypes: Boolean, assertIndirectTypes: Boolean): Materializer =
-      WhelkMaterializer.apply(ontology, markDirectTypes, assertIndirectTypes)
+    def construct(ontology: OWLOntology): Materializer =
+      WhelkMaterializer.apply(ontology)
 
   }
 

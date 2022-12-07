@@ -6,6 +6,7 @@ import org.apache.jena.vocabulary.{OWL2, RDF}
 import org.eclipse.rdf4j.model.impl.SimpleValueFactory
 import org.eclipse.rdf4j.model.{IRI, Resource, Statement, Value}
 import org.geneontology.whelk._
+import org.renci.materializer.Materializer.DirectType
 import org.semanticweb.owlapi.apibinding.OWLManager
 import org.semanticweb.owlapi.formats.RioRDFXMLDocumentFormatFactory
 import org.semanticweb.owlapi.model.{OWLOntology, OWLOntologyLoaderConfiguration}
@@ -14,7 +15,7 @@ import org.semanticweb.owlapi.rio.{RioMemoryTripleSource, RioParserImpl}
 import scala.jdk.CollectionConverters._
 import scala.util.control.NonFatal
 
-class WhelkMaterializer(ontology: OWLOntology, markDirectTypes: Boolean, assertIndirectTypes: Boolean) extends Materializer {
+class WhelkMaterializer(ontology: OWLOntology) extends Materializer {
 
   private val tbox = Bridge.ontologyToAxioms(ontology)
   private val whelk = Reasoner.assert(tbox)
@@ -25,7 +26,7 @@ class WhelkMaterializer(ontology: OWLOntology, markDirectTypes: Boolean, assertI
   private val allRoles = tbox.flatMap(_.signature).collect { case role: Role => role }
   private val propertyDeclarations = allRoles.map(r => Triple.create(NodeFactory.createURI(r.id), RDF.`type`.asNode(), OWL2.ObjectProperty.asNode()))
 
-  override def materialize(model: Model, allowInconsistent: Boolean): Option[Set[Triple]] = {
+  override def materialize(model: Model, allowInconsistent: Boolean, markDirectTypes: Boolean, assertIndirectTypes: Boolean): Option[Set[Triple]] = {
     val triplesWithoutImports = model.listStatements().asScala.filterNot(_.getPredicate == OWL2.imports).map(_.asTriple()).to(Set)
     ontologyFromStatements(triplesWithoutImports ++ propertyDeclarations) match {
       case Some(ont) =>
@@ -61,8 +62,9 @@ class WhelkMaterializer(ontology: OWLOntology, markDirectTypes: Boolean, assertI
         scribe.error("Couldn't create OWL ontology from RDF statements")
         None
     }
-
   }
+
+  def materializeAbox(abox: OWLOntology, allowInconsistent: Boolean, markDirectTypes: Boolean, assertIndirectTypes: Boolean): Option[OWLOntology] = ???
 
   private def isInconsistent(reasoner: ReasonerState): Boolean =
     reasoner.closureSubsBySuperclass(BuiltIn.Bottom).exists(_.isInstanceOf[Nominal])
@@ -114,7 +116,7 @@ class WhelkMaterializer(ontology: OWLOntology, markDirectTypes: Boolean, assertI
 
 object WhelkMaterializer {
 
-  def apply(ontology: OWLOntology, markDirectTypes: Boolean, assertIndirectTypes: Boolean): WhelkMaterializer =
-    new WhelkMaterializer(ontology, markDirectTypes, assertIndirectTypes)
+  def apply(ontology: OWLOntology): WhelkMaterializer =
+    new WhelkMaterializer(ontology)
 
 }
