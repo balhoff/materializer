@@ -20,7 +20,7 @@ addCompilerPlugin("org.typelevel" % "kind-projector" % "0.13.2" cross CrossVersi
 
 val zioVersion = "2.0.5"
 val tapirVersion = "1.2.3"
-val http4sVersion = "0.23.11"
+val http4sVersion = "0.23.12"
 
 libraryDependencies ++= {
   Seq(
