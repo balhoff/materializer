@@ -1,15 +1,14 @@
 package org.renci.materializer
 
-import org.apache.jena.datatypes.TypeMapper
 import org.apache.jena.graph.{Triple => JenaTriple}
 import org.apache.jena.rdf.model._
-import org.apache.jena.rdf.model.impl.ResourceImpl
 import org.apache.jena.vocabulary.{OWL2, RDF, RDFS, XSD}
 import org.eclipse.rdf4j.model.{BNode, IRI => SesameIRI, Literal => SesameLiteral, Statement => SesameStatement}
 import org.eclipse.rdf4j.rio.helpers.StatementCollector
 import org.geneontology.jena.OWLtoRules
 import org.geneontology.rules.engine.{Literal, _}
 import org.geneontology.rules.util.Bridge
+import org.geneontology.rules.util.Bridge.IndirectTypesContainer
 import org.phenoscape.scowl._
 import org.renci.materializer.Materializer.IsConsistent
 import org.semanticweb.owlapi.apibinding.OWLManager
@@ -29,9 +28,12 @@ class ArachneMaterializer(ontology: OWLOntology) extends Materializer {
   private val RDFType = URI(RDF.`type`.getURI)
   private val RDFLangString = URI(RDF.langString.getURI)
   private val Nothing = URI(OWL2.Nothing.getURI)
-  private val ontRules = Bridge.rulesFromJena(OWLtoRules.translate(ontology, Imports.INCLUDED, true, true, false, true)).to(Set)
-  private val indirectRules = Bridge.rulesFromJena(OWLtoRules.indirectRules(ontology)).to(Set)
-  private val arachne = new RuleEngine(ontRules ++ indirectRules, false)
+  private val ontRules = Bridge.injectIndirectTypeActions(Bridge.rulesFromJena(OWLtoRules.translate(ontology, Imports.INCLUDED, true, true, false, true)).to(Set), ontology)
+  private val arachne = new RuleEngine(ontRules, false)
+
+  scribe.info(s"Constructed rule engine with ${ontRules.size} rules")
+
+  System.gc()
 
   private def materializeTriples(triples: Iterable[Triple], allowInconsistent: Boolean, markDirectTypes: Boolean, assertIndirectTypes: Boolean): Option[Set[Triple]] = {
     val start = currentTimeMillis()
@@ -42,24 +44,31 @@ class ArachneMaterializer(ontology: OWLOntology) extends Materializer {
     val inconsistent = isInconsistent(inferred)
     if (!allowInconsistent && inconsistent) None
     else {
-      val (indirectTypeTriples, otherTriples) = inferred.partition(t => t.p == IndirectType)
       val finalTriples =
         if (markDirectTypes || !assertIndirectTypes) {
-          val indirectRDFTypeTriples = indirectTypeTriples.map(t => Triple(t.s, RDFType, t.o))
+          val indirectTypes = wm.userInfo match {
+            case container: IndirectTypesContainer => container.indirectTypes
+            case _                                 => Map.empty[URI, Set[URI]]
+          }
           val maybeWithoutIndirects = if (!assertIndirectTypes) {
-            otherTriples -- indirectRDFTypeTriples
-          } else otherTriples
+            inferred.filterNot(isIndirectType(_, indirectTypes))
+          } else inferred
           if (markDirectTypes) {
             val assertedTypeTriples = triples.filter(_.p == RDFType).filterNot(t => isBuiltIn(t.o)).toSet
-            val assertedTypeTriplesThatAreDirect = assertedTypeTriples -- indirectRDFTypeTriples
+            val assertedTypeTriplesThatAreDirect = assertedTypeTriples.filterNot(isIndirectType(_, indirectTypes))
             val allRemainingTypeTriples = maybeWithoutIndirects.filter(t => t.p == RDFType)
-            val directRDFTypeTriples = allRemainingTypeTriples -- indirectRDFTypeTriples
+            val directRDFTypeTriples = allRemainingTypeTriples.filterNot(isIndirectType(_, indirectTypes))
             val directTypeTriples = (directRDFTypeTriples ++ assertedTypeTriplesThatAreDirect).map(t => Triple(t.s, DirectTypeURI, t.o))
             maybeWithoutIndirects ++ directTypeTriples
           } else maybeWithoutIndirects
-        } else inferred -- indirectTypeTriples
+        } else inferred
       Some(finalTriples)
     }
+  }
+
+  private def isIndirectType(triple: Triple, indirectTypes: scala.collection.Map[URI, Set[URI]]) = triple match {
+    case Triple(s: URI, RDFType, o: URI) => indirectTypes.getOrElse(s, Set.empty)(o)
+    case _                               => false
   }
 
   override def materialize(model: Model, allowInconsistent: Boolean, markDirectTypes: Boolean, assertIndirectTypes: Boolean): Option[Set[JenaTriple]] = {

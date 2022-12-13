@@ -32,7 +32,7 @@ libraryDependencies ++= {
     "dev.zio"                     %% "zio-interop-cats"        % "3.3.0",
     "org.http4s"                  %% "http4s-blaze-server"     % http4sVersion,
     "org.geneontology"            %% "whelk-owlapi"            % "1.1.2",
-    "org.geneontology"            %% "arachne"                 % "1.2.1" exclude ("com.outr", "scribe-slf4j"),
+    "org.geneontology"            %% "arachne"                 % "1.3" exclude ("com.outr", "scribe-slf4j"),
     "com.outr"                    %% "scribe-slf4j"            % "2.7.13",
     "com.github.alexarchambault"  %% "case-app"                % "2.0.6",
     "org.apache.jena"              % "apache-jena-libs"        % "4.6.1" exclude ("org.slf4j", "slf4j-log4j12"),
