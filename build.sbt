@@ -19,7 +19,7 @@ testFrameworks += new TestFramework("zio.test.sbt.ZTestFramework")
 addCompilerPlugin("org.typelevel" % "kind-projector" % "0.13.2" cross CrossVersion.full)
 
 val zioVersion = "2.0.5"
-val tapirVersion = "1.2.3"
+val tapirVersion = "1.2.5"
 val http4sVersion = "0.23.11"
 
 libraryDependencies ++= {
