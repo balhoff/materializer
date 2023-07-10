@@ -35,7 +35,7 @@ libraryDependencies ++= {
     "org.geneontology"            %% "arachne"                 % "1.3" exclude ("com.outr", "scribe-slf4j"),
     "com.outr"                    %% "scribe-slf4j"            % "2.7.13",
     "com.github.alexarchambault"  %% "case-app"                % "2.0.6",
-    "org.apache.jena"              % "apache-jena-libs"        % "4.6.1" exclude ("org.slf4j", "slf4j-log4j12"),
+    "org.apache.jena"              % "apache-jena-libs"        % "4.9.0" exclude ("org.slf4j", "slf4j-log4j12"),
     "dev.zio"                     %% "zio-test"                % zioVersion % Test,
     "dev.zio"                     %% "zio-test-sbt"            % zioVersion % Test
   )
