@@ -8,7 +8,7 @@ version := "0.2.7"
 
 licenses := Seq("MIT license" -> url("https://opensource.org/licenses/MIT"))
 
-scalaVersion := "2.13.10"
+scalaVersion := "2.13.12"
 
 scalacOptions := Seq("-unchecked", "-deprecation", "-encoding", "utf8")
 
