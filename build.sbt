@@ -29,7 +29,7 @@ libraryDependencies ++= {
     "com.softwaremill.sttp.tapir" %% "tapir-swagger-ui-bundle" % tapirVersion,
     "dev.zio"                     %% "zio-interop-cats"        % "3.3.0",
     "org.http4s"                  %% "http4s-blaze-server"     % http4sVersion,
-    "org.geneontology"            %% "whelk-owlapi"            % "1.1.3",
+    "org.geneontology"            %% "whelk-owlapi"            % "1.2.1",
     "org.geneontology"            %% "arachne"                 % "1.3" exclude ("com.outr", "scribe-slf4j"),
     "com.outr"                    %% "scribe-slf4j"            % "2.7.13",
     "com.github.alexarchambault"  %% "case-app"                % "2.0.6",
