@@ -22,6 +22,8 @@ import java.lang.System.currentTimeMillis
 
 object MaterializerServer {
 
+  private type MaterializerTask[A] = RIO[Materializer, A]
+
   private val materializeEndpoint: PublicEndpoint[(OWLOntology, Boolean, Boolean, Boolean), String, OWLOntology, Any] =
     endpoint
       .in("materialize")
@@ -63,13 +65,13 @@ object MaterializerServer {
     ont
   }
 
-  private val materializeHttp: HttpRoutes[RIO[Materializer, *]] = ZHttp4sServerInterpreter().from(materializeService).toRoutes
+  private val materializeHttp: HttpRoutes[MaterializerTask] = ZHttp4sServerInterpreter().from(materializeService).toRoutes
 
-  private val docsRoute: HttpRoutes[RIO[Materializer, *]] = ZHttp4sServerInterpreter[Materializer]().from(SwaggerUI[RIO[Materializer, *]](openAPI)).toRoutes
+  private val docsRoute: HttpRoutes[MaterializerTask] = ZHttp4sServerInterpreter[Materializer]().from(SwaggerUI[MaterializerTask](openAPI)).toRoutes
 
   val serverProgram: RIO[Materializer, Unit] =
     ZIO.executor.flatMap(executor =>
-      BlazeServerBuilder[RIO[Materializer, *]]
+      BlazeServerBuilder[MaterializerTask]
         .withExecutionContext(executor.asExecutionContext)
         .bindHttp(8080, "0.0.0.0")
         .withHttpApp(CORS.policy.withAllowOriginAll
